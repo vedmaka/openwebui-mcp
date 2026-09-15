@@ -216,8 +216,16 @@ Token-based, in two layers
    ```
 
 2. **MCP endpoint auth** (optional). Set `OPENWEBUI_MCP_TOKEN=<token>` to make
-   the MCP server itself require `Authorization: Bearer <token>` on every
-   request. Unset, the endpoint is open to its listeners
+   the MCP server itself require the token on every request. Clients can send
+   it as `Authorization: Bearer <token>` or in the MCP URL:
+
+   ```text
+   https://myserver.example/mcp?apiKey=<token>
+   ```
+
+   The Bearer header takes precedence when both forms are present. Prefer the
+   header when supported because URLs can appear in browser history, proxy
+   logs, and monitoring data. Unset, the endpoint is open to its listeners
 
 ## TLS to Open WebUI
 
@@ -269,7 +277,7 @@ defined env var in each alias list
 | Enforce default model | `OPENWEBUI_ENFORCE_DEFAULT_MODEL`, `OWUI_ENFORCE_DEFAULT_MODEL` | `false` |
 | `ask` tool description | `OPENWEBUI_ASK_DESCRIPTION`, `OWUI_ASK_DESCRIPTION` | built-in docstring |
 | Server instructions | `OPENWEBUI_INSTRUCTIONS`, `OWUI_INSTRUCTIONS` | none |
-| MCP bearer token | `OPENWEBUI_MCP_TOKEN`, `OWUI_MCP_TOKEN` | none |
+| MCP endpoint token | `OPENWEBUI_MCP_TOKEN`, `OWUI_MCP_TOKEN` | none |
 | Transport | `OPENWEBUI_MCP_TRANSPORT` | `stdio` |
 | Chat timeout ms | `OWUI_TIMEOUT_MS` | `120000` |
 | Open WebUI CA bundle | `OPENWEBUI_CA_BUNDLE`, `OWUI_CA_BUNDLE` | none |

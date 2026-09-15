@@ -66,8 +66,9 @@ class Settings:
 
     ``base_url`` and ``token`` are required: they are the Open WebUI server the
     SDK talks to and the bearer token (API key) used for authentication.
-    ``mcp_token`` is optional and, when set, turns on bearer-token auth for the
-    MCP endpoint itself (see ``server.create_server``).
+    ``mcp_token`` is optional and, when set, turns on token auth for the MCP
+    endpoint itself through a Bearer header or ``apiKey`` URL parameter (see
+    ``server.create_server``).
     """
 
     base_url: str

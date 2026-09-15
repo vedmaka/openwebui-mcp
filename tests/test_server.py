@@ -10,6 +10,7 @@ from fastmcp.tools.function_tool import FunctionTool
 from openwebui_sdk import OpenWebUIClient
 from openwebui_sdk.chat import ChatResult
 from openwebui_sdk.models import Model
+from starlette.testclient import TestClient
 
 from openwebui_mcp.config import Settings
 from openwebui_mcp.server import StaticTokenVerifier, create_server
@@ -78,6 +79,29 @@ async def _call(mcp: FastMCP, name: str, **kwargs: Any) -> Any:
 def _fake_settings(**kw: Any) -> Settings:
     base = {"base_url": "http://owui:8080", "token": "sk-x", **kw}
     return Settings(**base)
+
+
+def _initialize_status(
+    server: FastMCP, url: str, headers: dict[str, str] | None = None
+) -> int:
+    """Send an HTTP MCP initialize request and return its response status."""
+    request = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "1"},
+        },
+    }
+    request_headers = {
+        "Accept": "application/json, text/event-stream",
+        **(headers or {}),
+    }
+    app = server.http_app(path="/mcp", stateless_http=True)
+    with TestClient(app) as client:
+        return client.post(url, json=request, headers=request_headers).status_code
 
 
 def test_server_instructions_field() -> None:
@@ -369,6 +393,48 @@ async def test_static_verifier_accepts_and_rejects() -> None:
     assert ok is not None
     assert await verifier.verify_token("wrong-token") is None
     assert await verifier.verify_token("") is None
+
+
+def test_mcp_auth_accepts_api_key_query_parameter() -> None:
+    """HTTP clients without header support can authenticate through apiKey."""
+    server = create_server(
+        _fake_settings(mcp_token="s3cret"), client=cast(OpenWebUIClient, FakeClient())
+    )
+    assert _initialize_status(server, "/mcp?apiKey=s3cret") == 200
+
+
+@pytest.mark.parametrize(
+    ("url", "headers"),
+    [
+        ("/mcp", {"Authorization": "Bearer s3cret"}),
+        ("/mcp?apiKey=wrong", {"Authorization": "Bearer s3cret"}),
+    ],
+)
+def test_mcp_auth_accepts_bearer_header(
+    url: str, headers: dict[str, str]
+) -> None:
+    """Bearer auth stays valid and takes precedence over the query parameter."""
+    server = create_server(
+        _fake_settings(mcp_token="s3cret"), client=cast(OpenWebUIClient, FakeClient())
+    )
+    assert _initialize_status(server, url, headers) == 200
+
+
+@pytest.mark.parametrize(
+    ("url", "headers"),
+    [
+        ("/mcp?apiKey=wrong", {}),
+        ("/mcp?apiKey=s3cret", {"Authorization": "Bearer wrong"}),
+    ],
+)
+def test_mcp_auth_rejects_invalid_credentials(
+    url: str, headers: dict[str, str]
+) -> None:
+    """Invalid query tokens fail, and a query token cannot override Bearer auth."""
+    server = create_server(
+        _fake_settings(mcp_token="s3cret"), client=cast(OpenWebUIClient, FakeClient())
+    )
+    assert _initialize_status(server, url, headers) == 401
 
 
 @pytest.mark.anyio

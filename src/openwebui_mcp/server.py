@@ -11,7 +11,7 @@ Two tools, per spec:
 Authentication: the server itself talks to Open WebUI with a bearer token (as
 ``Authorization: Bearer``) carried by the SDK client. When a static MCP token
 is configured (``OPENWEBUI_MCP_TOKEN``) the MCP endpoint additionally requires
-``Authorization: Bearer <token>`` on every request.
+the token as ``Authorization: Bearer <token>`` or the ``apiKey`` URL parameter.
 
 Note on the event loop: the SDK ships a sync ``run_chat`` that wraps its async
 Socket.IO runner in ``asyncio.run``. That works for the CLI (main thread, no
@@ -30,12 +30,16 @@ import asyncio
 import inspect
 import logging
 import os
+import secrets
 import ssl
 from typing import Any
 
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken, AuthProvider
 from openwebui_sdk import OpenWebUIClient
+from starlette.datastructures import MutableHeaders, QueryParams
+from starlette.middleware import Middleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from openwebui_mcp.config import Settings
 
@@ -46,22 +50,41 @@ logger = logging.getLogger(__name__)
 _TOOL_FIELDS = "tool_ids"
 
 
+class ApiKeyQueryMiddleware:
+    """Pass ``apiKey`` query credentials to FastMCP's Bearer auth backend."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            headers = MutableHeaders(scope=scope)
+            if headers.get("authorization") is None:
+                api_key = QueryParams(scope.get("query_string", b"")).get("apiKey")
+                if api_key:
+                    headers["authorization"] = f"Bearer {api_key}"
+        await self.app(scope, receive, send)
+
+
 class StaticTokenVerifier(AuthProvider):
-    """Accepts exactly one configured bearer token (constant-time compare).
+    """Accept exactly one configured Bearer or ``apiKey`` query token.
 
     FastMCP 4 wraps everything auth-related in a single ``AuthProvider``; the
     verifier IS the provider, so subclassing gives us the same fixed bearer
-    token behavior the SDK v1 verifier had, without a real OAuth server.
+    token behavior the SDK v1 verifier had, without a real OAuth server. Query
+    credentials pass through the same constant-time token verification.
     """
 
     def __init__(self, token: str) -> None:
         super().__init__()
         self._token = token
 
+    def get_middleware(self) -> list[Middleware]:
+        """Accept query credentials before FastMCP applies Bearer auth."""
+        return [Middleware(ApiKeyQueryMiddleware), *super().get_middleware()]
+
     async def verify_token(self, token: str) -> AccessToken | None:
-        if len(token) != len(self._token):
-            return None
-        if sum(a != b for a, b in zip(token, self._token, strict=True)) != 0:
+        if not secrets.compare_digest(token, self._token):
             return None
         return AccessToken(
             token=token,
@@ -107,7 +130,8 @@ def create_server(
 
     ``client`` is injectable for tests; when omitted a client is created from
     ``settings`` (base URL + bearer token). When ``settings.mcp_token`` is set
-    the MCP endpoint requires ``Authorization: Bearer <token>`` on requests.
+    the MCP endpoint accepts that token through ``Authorization: Bearer`` or
+    the ``apiKey`` URL parameter.
     """
     apply_tls_settings(settings)
     owui = client or OpenWebUIClient(base_url=settings.base_url, token=settings.token)
