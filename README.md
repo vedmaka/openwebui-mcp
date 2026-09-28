@@ -15,10 +15,25 @@ through the full tool-calling loop, not just plain chat
 
 ## Quick start
 
+There is no pre-configured Open WebUI identity - every caller supplies their
+own per request (see Authentication). Streamable HTTP is the transport to
+use for that:
+
 ```bash
-OPENWEBUI_BASE_URL=http://localhost:8080 OPENWEBUI_API_KEY=sk-... \
-  uvx openwebui-mcp   # stdio (default) - installs and runs from PyPI
+OPENWEBUI_BASE_URL=http://localhost:8080 \
+  uvx openwebui-mcp --transport streamable-http --host 0.0.0.0 --port 8000
 ```
+
+Point your MCP client at `http://<host>:8000/mcp?apiKey=sk-...` (or send an
+`Authorization: Bearer` header instead - see Authentication).
+
+> [!IMPORTANT]
+> stdio transport (the MCP SDK default) has no per-request channel at all -
+> no URL, no headers. It falls back to a single, server-wide
+> `OPENWEBUI_API_KEY` instead (see Authentication) - without that set,
+> every `ask` and `list_models` call over stdio fails with a clear error.
+> Prefer streamable-http or SSE for multi-user deployments, since stdio has
+> no way to give each caller their own identity.
 
 ### Connect an MCP client
 
@@ -27,12 +42,7 @@ it call tools without approval:
 
 ```toml
 [mcp_servers.owui]
-command = "uvx"
-args = ["openwebui-mcp"]
-env = {
-  OPENWEBUI_BASE_URL = "http://localhost:8080",
-  OPENWEBUI_API_KEY = "sk-..."
-}
+url = "http://<host>:8000/mcp?apiKey=sk-..."
 default_tools_approval_mode = "auto"
 ```
 
@@ -42,19 +52,15 @@ default_tools_approval_mode = "auto"
 {
   "mcpServers": {
     "openwebui": {
-      "command": "uvx",
-      "args": ["openwebui-mcp"],
-      "env": {
-        "OPENWEBUI_BASE_URL": "http://localhost:8080",
-        "OPENWEBUI_API_KEY": "sk-..."
-      }
+      "type": "streamable-http",
+      "url": "http://<host>:8000/mcp?apiKey=sk-..."
     }
   }
 }
 ```
 
-The quick start uses stdio, so each client spawns the server locally. For
-remote HTTP transports, open the collapsible options below (or see Run)
+For SSE clients, or to run the server as a locally-spawned subprocess
+instead, open the collapsible options below (or see Run)
 
 <details>
 <summary>SSE setup (Claude Desktop and other SSE-capable clients)</summary>
@@ -78,27 +84,14 @@ uvx openwebui-mcp --transport sse --host 0.0.0.0 --port 8000
 }
 ```
 
-</details>
+For multi-user deployments, an `Authorization: Bearer` header authenticates
+each client to Open WebUI with their own key - see Authentication. Unlike
+streamable-http, SSE does **not** support the `apiKey` query parameter.
 
-<details>
-<summary>Streamable HTTP setup (Codex CLI, rmcp, agents over HTTP)</summary>
-
-Run the server:
-
-```bash
-uvx openwebui-mcp --transport streamable-http --host 0.0.0.0 --port 8000
-```
-
-**Codex CLI** (`~/.codex/config.toml`) - streamable-http endpoint is `http://<host>:8000/mcp`:
-
-```toml
-[mcp_servers.owui]
-url = "http://<host>:8000/mcp"
-default_tools_approval_mode = "auto"
-```
-
-A bare `http://<host>:8000` returns 404 on initialize; point the client URL at
-the full `/mcp` path. rmcp and other streamable-http clients use the same URL
+A bare `http://<host>:8000` returns 404 on initialize for both transports;
+point the client URL at the full `/mcp` (streamable-http) or `/sse` (SSE)
+path. rmcp and other streamable-http clients use the same URL shown in
+Quick start above.
 
 </details>
 
@@ -205,27 +198,42 @@ model `id`, display `name` and the `tool_ids` attached to it
 
 ## Authentication
 
-Token-based, in two layers
+Token-based. The server talks to Open WebUI as `Authorization: Bearer
+<token>`.
 
-1. **Open WebUI access** (required). The server talks to Open WebUI as
-   `Authorization: Bearer <token>`. Provide an API key or JWT via env:
+On streamable-http and SSE, each caller supplies their own Open WebUI
+identity per request - no fixed key is pre-configured on the server. Two
+ways to pass it, checked in this order:
 
-   ```env
-   OPENWEBUI_BASE_URL=http://localhost:8080
-   OPENWEBUI_API_KEY=sk-...
-   ```
-
-2. **MCP endpoint auth** (optional). Set `OPENWEBUI_MCP_TOKEN=<token>` to make
-   the MCP server itself require the token on every request. Clients can send
-   it as `Authorization: Bearer <token>` or in the MCP URL:
+1. An `Authorization: Bearer <token>` header (works on both transports,
+   including SSE - a header persists across the whole connection).
+2. An `apiKey` query parameter on the MCP URL:
 
    ```text
-   https://myserver.example/mcp?apiKey=<token>
+   https://<host>:8000/mcp?apiKey=sk-12345
    ```
 
-   The Bearer header takes precedence when both forms are present. Prefer the
-   header when supported because URLs can appear in browser history, proxy
-   logs, and monitoring data. Unset, the endpoint is open to its listeners
+   Works on streamable-http. **Not** SSE - the transport hands follow-up
+   requests a bare relative URL, which drops the query string, for any
+   compliant SSE client.
+
+This lets multiple users share one HTTP endpoint, each authenticating to
+Open WebUI as themselves - handy for clients (e.g. Claude web) that can't
+set an `Authorization` header, via the query parameter instead. A request
+with neither credential fails - there is no shared fallback identity to
+silently use.
+
+stdio transport has no per-request channel (no URL, no headers) to carry a
+caller's own identity, so it falls back to a single, server-wide
+`OPENWEBUI_API_KEY` instead. That setting is **only** read on stdio - it is
+never consulted on streamable-http or SSE, so it can't leak into another
+caller's request there. Without it set, every `ask` and `list_models` call
+made over stdio fails:
+
+```env
+OPENWEBUI_BASE_URL=http://localhost:8080
+OPENWEBUI_API_KEY=sk-...  # stdio only; ignored on streamable-http/SSE
+```
 
 ## TLS to Open WebUI
 
@@ -272,12 +280,11 @@ defined env var in each alias list
 | Setting | Env vars (first wins) | Default |
 | --- | --- | --- |
 | Open WebUI URL | `OPENWEBUI_BASE_URL`, `OPENWEBUI_URL`, `OWUI_URL` | required |
-| Open WebUI token | `OPENWEBUI_API_KEY`, `OPENWEBUI_TOKEN`, `OWUI_API_KEY`, `OWUI_TOKEN` | required |
+| Open WebUI API key (stdio only, see Authentication) | `OPENWEBUI_API_KEY`, `OWUI_API_KEY` | none |
 | Default model for `ask` | `OPENWEBUI_DEFAULT_MODEL`, `OWUI_DEFAULT_MODEL` | none |
 | Enforce default model | `OPENWEBUI_ENFORCE_DEFAULT_MODEL`, `OWUI_ENFORCE_DEFAULT_MODEL` | `false` |
 | `ask` tool description | `OPENWEBUI_ASK_DESCRIPTION`, `OWUI_ASK_DESCRIPTION` | built-in docstring |
 | Server instructions | `OPENWEBUI_INSTRUCTIONS`, `OWUI_INSTRUCTIONS` | none |
-| MCP endpoint token | `OPENWEBUI_MCP_TOKEN`, `OWUI_MCP_TOKEN` | none |
 | Transport | `OPENWEBUI_MCP_TRANSPORT` | `stdio` |
 | Chat timeout ms | `OWUI_TIMEOUT_MS` | `120000` |
 | Open WebUI CA bundle | `OPENWEBUI_CA_BUNDLE`, `OWUI_CA_BUNDLE` | none |
@@ -286,7 +293,7 @@ defined env var in each alias list
 ## Run
 
 ```bash
-uv run openwebui-mcp                      # stdio (default), for local MCP clients
+uv run openwebui-mcp                      # stdio (default) - needs OPENWEBUI_API_KEY, see Authentication
 uv run openwebui-mcp --transport sse      # SSE over HTTP
 uv run openwebui-mcp --transport streamable-http --host 0.0.0.0 --port 8000
 ```
@@ -300,7 +307,7 @@ uv run pyright src tests
 
 ## Layout
 
-- `src/openwebui_mcp/server.py` - FastMCP server, the two tools, TLS apply, static token verifier
+- `src/openwebui_mcp/server.py` - FastMCP server, the two tools, TLS apply, per-request Open WebUI identity resolution
 - `src/openwebui_mcp/config.py` - env-driven settings
 - `src/openwebui_mcp/__main__.py` - CLI entry point
 - `skills/owui-proactive-ask/` - agent skill that forces proactive use of `ask`

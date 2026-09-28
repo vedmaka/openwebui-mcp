@@ -17,13 +17,12 @@ logger = logging.getLogger(__name__)
 
 # Accepted env var names, in precedence order, for each setting.
 _BASE_URL_VARS = ("OPENWEBUI_BASE_URL", "OPENWEBUI_URL", "OWUI_URL")
-_TOKEN_VARS = ("OPENWEBUI_API_KEY", "OPENWEBUI_TOKEN", "OWUI_API_KEY", "OWUI_TOKEN")
+_TOKEN_VARS = ("OPENWEBUI_API_KEY", "OWUI_API_KEY")
 _DEFAULT_MODEL_VARS = ("OPENWEBUI_DEFAULT_MODEL", "OWUI_DEFAULT_MODEL")
 _ENFORCE_DEFAULT_MODEL_VARS = (
     "OPENWEBUI_ENFORCE_DEFAULT_MODEL",
     "OWUI_ENFORCE_DEFAULT_MODEL",
 )
-_MCP_TOKEN_VARS = ("OPENWEBUI_MCP_TOKEN", "OWUI_MCP_TOKEN")
 _TRANSPORT_VARS = ("OPENWEBUI_MCP_TRANSPORT", "OWUI_MCP_TRANSPORT")
 _SSL_CA_VARS = ("OPENWEBUI_CA_BUNDLE", "OWUI_CA_BUNDLE")
 _SSL_VERIFY_VARS = ("OPENWEBUI_SSL_VERIFY", "OWUI_SSL_VERIFY")
@@ -64,22 +63,28 @@ def load_dotenv(path: str | Path | None = None) -> None:
 class Settings:
     """Resolved server configuration.
 
-    ``base_url`` and ``token`` are required: they are the Open WebUI server the
-    SDK talks to and the bearer token (API key) used for authentication.
-    ``mcp_token`` is optional and, when set, turns on token auth for the MCP
-    endpoint itself through a Bearer header or ``apiKey`` URL parameter (see
-    ``server.create_server``).
+    ``base_url`` is required: the Open WebUI server the SDK talks to. On
+    streamable-http and SSE, every caller supplies their own identity per
+    request, via the ``apiKey`` query parameter or an ``Authorization:
+    Bearer`` header (see ``server.resolve_request_token``) - ``token`` is
+    never read on those transports, so one caller's key can't leak into
+    another's request. stdio has no per-request channel to carry a
+    credential at all (no URL, no headers), so ``token`` (from
+    ``OPENWEBUI_API_KEY``) is used there as the only way to authenticate;
+    without it, every stdio tool call fails with a clear error.
     """
 
     base_url: str
-    token: str
+    # Fallback Open WebUI identity for stdio ONLY (no per-request channel
+    # exists there). Never consulted on streamable-http/SSE - see
+    # server.resolve_request_token.
+    token: str | None = None
     name: str = "openwebui"
     # Model used by ``ask`` when the caller does not pass one explicitly.
     default_model: str | None = None
     # When true, ``ask`` always uses ``default_model`` and ignores the caller's
     # ``model`` argument (must be paired with ``default_model``).
     enforce_default_model: bool = False
-    mcp_token: str | None = None
     timeout_ms: int = 120_000
     transport: Transport = "stdio"
     host: str = "127.0.0.1"
@@ -101,16 +106,17 @@ class Settings:
     def from_env(cls, **overrides: str) -> Settings:
         """Build settings from env vars; ``overrides`` win for tests/callers."""
         base_url = _first(*_BASE_URL_VARS) or overrides.get("base_url")
-        token = _first(*_TOKEN_VARS) or overrides.get("token")
-        if not base_url or not token:
+        if not base_url:
             raise ValueError(
                 "Open WebUI connection not configured: set OPENWEBUI_BASE_URL "
-                "and OPENWEBUI_API_KEY (or the aliases OPENWEBUI_URL / "
-                "OPENWEBUI_TOKEN)"
+                "(or the alias OPENWEBUI_URL)"
             )
-        mcp_token = overrides.get("mcp_token") or _first(*_MCP_TOKEN_VARS)
-        default_model = overrides.get("default_model") or _first(*_DEFAULT_MODEL_VARS)
-        transport = overrides.get("transport") or _first(*_TRANSPORT_VARS) or "stdio"
+        default_model = overrides.get("default_model") or _first(
+            *_DEFAULT_MODEL_VARS
+        )
+        transport = (
+            overrides.get("transport") or _first(*_TRANSPORT_VARS) or "stdio"
+        )
         if transport not in _VALID_TRANSPORTS:
             raise ValueError(
                 f"invalid transport {transport!r}; pick one of "
@@ -121,7 +127,8 @@ class Settings:
         transport = cast(Transport, transport)
         try:
             timeout_ms = int(
-                overrides.get("timeout_ms") or os.getenv("OWUI_TIMEOUT_MS", "120000")
+                overrides.get("timeout_ms")
+                or os.getenv("OWUI_TIMEOUT_MS", "120000")
             )
         except ValueError as exc:
             raise ValueError(f"invalid OWUI_TIMEOUT_MS: {exc}") from exc
@@ -141,9 +148,8 @@ class Settings:
         )
         return cls(
             base_url=base_url,
-            token=token,
+            token=overrides.get("token") or _first(*_TOKEN_VARS),
             name=overrides.get("name", "openwebui"),
-            mcp_token=mcp_token,
             default_model=default_model,
             enforce_default_model=enforce_raw.strip().lower()
             not in ("0", "false", "no", "off"),
@@ -151,9 +157,12 @@ class Settings:
             timeout_ms=timeout_ms,
             host=overrides.get("host", "127.0.0.1"),
             port=port,
-            ssl_ca_bundle=overrides.get("ssl_ca_bundle") or _first(*_SSL_CA_VARS),
-            ssl_verify=verify_raw.strip().lower() not in ("0", "false", "no", "off"),
+            ssl_ca_bundle=overrides.get("ssl_ca_bundle")
+            or _first(*_SSL_CA_VARS),
+            ssl_verify=verify_raw.strip().lower()
+            not in ("0", "false", "no", "off"),
             ask_description=overrides.get("ask_description")
             or _first(*_ASK_DESCRIPTION_VARS),
-            instructions=overrides.get("instructions") or _first(*_INSTRUCTIONS_VARS),
+            instructions=overrides.get("instructions")
+            or _first(*_INSTRUCTIONS_VARS),
         )

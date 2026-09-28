@@ -98,7 +98,7 @@ def test_direct_https_to_self_signed_fails_without_fix(
 
 
 def test_verify_false_allows_self_signed(tls_server: str, isolated_env: None) -> None:
-    apply_tls_settings(Settings(base_url=tls_server, token="sk-x", ssl_verify=False))
+    apply_tls_settings(Settings(base_url=tls_server, ssl_verify=False))
     urllib.request.urlcleanup()
     models = OpenWebUIClient(base_url=tls_server, token="sk-x").list_models()
     assert models and models[0].id == "m1"
@@ -108,7 +108,7 @@ def test_ca_bundle_allows_self_signed(
     tls_server: str, tmp_path: Any, monkeypatch: pytest.MonkeyPatch, isolated_env: None
 ) -> None:
     _cert, _key, ca = _make_cert(tmp_path)
-    apply_tls_settings(Settings(base_url=tls_server, token="sk-x", ssl_ca_bundle=ca))
+    apply_tls_settings(Settings(base_url=tls_server, ssl_ca_bundle=ca))
     assert os.environ.get("SSL_CERT_FILE") == ca
     urllib.request.urlcleanup()
     models = OpenWebUIClient(base_url=tls_server, token="sk-x").list_models()
@@ -117,5 +117,5 @@ def test_ca_bundle_allows_self_signed(
 
 def test_no_tls_config_is_noop(tls_server: str, isolated_env: None) -> None:
     before = ssl._create_default_https_context
-    apply_tls_settings(Settings(base_url=tls_server, token="sk-x"))
+    apply_tls_settings(Settings(base_url=tls_server))
     assert ssl._create_default_https_context is before
