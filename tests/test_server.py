@@ -131,7 +131,7 @@ async def test_ask_description_env_override() -> None:
     # env text is the new first line
     assert tool.description.startswith("Always answer in German")
     # the default summary line is replaced (not just prepended)
-    assert "organization knowledge base" not in tool.description.splitlines()[0]
+    assert "knowledge base" not in tool.description.splitlines()[0]
     # the stateless/history guidance survives
     assert "IMPORTANT - this MCP server is stateless" in tool.description
     assert "history" in tool.description
@@ -145,7 +145,7 @@ async def test_ask_description_falls_back_to_docstring() -> None:
     assert tool is not None
     assert tool.description is not None
     assert tool.description.startswith(
-        "Ask the organization knowledge base (an Open WebUI model), with tool support."
+        "Ask the knowledge base (an Open WebUI model), with tool support."
     )
     assert "IMPORTANT - this MCP server is stateless" in tool.description
     assert "history" in tool.description

@@ -29,14 +29,14 @@ _SSL_VERIFY_VARS = ("OPENWEBUI_SSL_VERIFY", "OWUI_SSL_VERIFY")
 _ASK_DESCRIPTION_VARS = ("OPENWEBUI_ASK_DESCRIPTION", "OWUI_ASK_DESCRIPTION")
 _INSTRUCTIONS_VARS = ("OPENWEBUI_INSTRUCTIONS", "OWUI_INSTRUCTIONS")
 
-# Names this server "the organization knowledge base" so agents can find it
-# whatever name the client registered it under. Keep in sync with the ``ask``
-# docstring, the README and ``skills/owui-proactive-ask/SKILL.md``.
+# Names this server "the knowledge base" so agents can find it whatever name
+# the client registered it under. Keep in sync with the ``ask`` docstring, the
+# README and ``skills/owui-proactive-ask/SKILL.md``.
 DEFAULT_INSTRUCTIONS = (
-    "This server is the organization knowledge base: tickets, wiki pages, "
+    "This server is the knowledge base: tickets, wiki pages, "
     "prior decisions and internal terminology. Call its `ask` tool FIRST, "
     "before answering from general knowledge and before asking the user for "
-    "clarification, because the organization may have a specific answer that "
+    "clarification, because the knowledge base may have a specific answer that "
     "generic knowledge would miss."
 )
 

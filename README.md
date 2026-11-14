@@ -124,7 +124,7 @@ npx skills add ./skills/owui-proactive-ask -g -a claude-code -y
 cp -r skills/owui-proactive-ask ~/.agents/skills/
 ```
 
-The skill refers to the tool as "the organization knowledge base MCP (its `ask`
+The skill refers to the tool as "the knowledge base MCP (its `ask`
 tool)", so the server can be registered under any name. The server ships default
 instructions and an `ask` description that use the same wording; override the
 instructions with `OPENWEBUI_INSTRUCTIONS`.
@@ -285,7 +285,7 @@ defined env var in each alias list
 | Default model for `ask` | `OPENWEBUI_DEFAULT_MODEL`, `OWUI_DEFAULT_MODEL` | none |
 | Enforce default model | `OPENWEBUI_ENFORCE_DEFAULT_MODEL`, `OWUI_ENFORCE_DEFAULT_MODEL` | `false` |
 | `ask` tool description | `OPENWEBUI_ASK_DESCRIPTION`, `OWUI_ASK_DESCRIPTION` | built-in docstring |
-| Server instructions | `OPENWEBUI_INSTRUCTIONS`, `OWUI_INSTRUCTIONS` | organization knowledge base text |
+| Server instructions | `OPENWEBUI_INSTRUCTIONS`, `OWUI_INSTRUCTIONS` | knowledge base text |
 | Transport | `OPENWEBUI_MCP_TRANSPORT` | `stdio` |
 | Chat timeout ms | `OWUI_TIMEOUT_MS` | `120000` |
 | Open WebUI CA bundle | `OPENWEBUI_CA_BUNDLE`, `OWUI_CA_BUNDLE` | none |
