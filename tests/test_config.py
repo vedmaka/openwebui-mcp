@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from openwebui_mcp.config import Settings
+from openwebui_mcp.config import DEFAULT_INSTRUCTIONS, Settings
 
 # Clear any ambient Open WebUI env vars so tests are hermetic.
 _AMBIENT = (
@@ -159,8 +159,8 @@ def test_ask_description_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_instructions_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OPENWEBUI_BASE_URL", "http://h:1")
-    # unset stays None
-    assert Settings.from_env().instructions is None
+    # unset falls back to the default knowledge-base instructions
+    assert Settings.from_env().instructions == DEFAULT_INSTRUCTIONS
     monkeypatch.setenv(
         "OPENWEBUI_INSTRUCTIONS", "Always use ask() for genealogy questions"
     )

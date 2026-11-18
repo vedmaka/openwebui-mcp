@@ -29,6 +29,17 @@ _SSL_VERIFY_VARS = ("OPENWEBUI_SSL_VERIFY", "OWUI_SSL_VERIFY")
 _ASK_DESCRIPTION_VARS = ("OPENWEBUI_ASK_DESCRIPTION", "OWUI_ASK_DESCRIPTION")
 _INSTRUCTIONS_VARS = ("OPENWEBUI_INSTRUCTIONS", "OWUI_INSTRUCTIONS")
 
+# Names this server "the knowledge base" so agents can find it whatever name
+# the client registered it under. Keep in sync with the ``ask`` docstring, the
+# README and ``skills/owui-proactive-ask/SKILL.md``.
+DEFAULT_INSTRUCTIONS = (
+    "This server is the knowledge base: tickets, wiki pages, "
+    "prior decisions and internal terminology. Call its `ask` tool FIRST, "
+    "before answering from general knowledge and before asking the user for "
+    "clarification, because the knowledge base may have a specific answer that "
+    "generic knowledge would miss."
+)
+
 # MCP transports FastMCP can run on; validated at config time.
 Transport = Literal["stdio", "sse", "streamable-http"]
 _VALID_TRANSPORTS: tuple[str, ...] = ("stdio", "sse", "streamable-http")
@@ -99,7 +110,8 @@ class Settings:
     ask_description: str | None = None
     # Server-wide ``instructions`` surfaced in the MCP initialize response.
     # Codex and other hosts read it as usage guidance for the whole server, so
-    # this is where to tell agents to use the tools proactively.
+    # this is where to tell agents to use the tools proactively. ``from_env``
+    # falls back to ``DEFAULT_INSTRUCTIONS``.
     instructions: str | None = None
 
     @classmethod
@@ -164,5 +176,6 @@ class Settings:
             ask_description=overrides.get("ask_description")
             or _first(*_ASK_DESCRIPTION_VARS),
             instructions=overrides.get("instructions")
-            or _first(*_INSTRUCTIONS_VARS),
+            or _first(*_INSTRUCTIONS_VARS)
+            or DEFAULT_INSTRUCTIONS,
         )

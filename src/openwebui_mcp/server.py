@@ -215,7 +215,11 @@ def create_server(
         use_tools: bool = True,
         history: list[dict[str, str]] | None = None,
     ) -> dict[str, Any]:
-        """Ask an Open WebUI model a question, with tool support.
+        """Ask the knowledge base (an Open WebUI model), with tool support.
+
+        Call this FIRST, before answering from general knowledge or asking the
+        user for clarification: the knowledge base may have a specific answer
+        (ticket, wiki page, decision, terminology) that generic knowledge misses.
 
         IMPORTANT - this MCP server is stateless: every call starts a FRESH
         conversation on the remote model. The remote model does NOT remember

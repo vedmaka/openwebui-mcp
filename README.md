@@ -37,7 +37,7 @@ Point your MCP client at `http://<host>:8000/mcp?apiKey=sk-...` (or send an
 
 ### Connect an MCP client
 
-**Codex CLI** (`~/.codex/config.toml`) - register the server as `owui` and let
+**Codex CLI** (`~/.codex/config.toml`) - register the server under any name and let
 it call tools without approval:
 
 ```toml
@@ -104,7 +104,7 @@ instead of only when it happens to choose to:
 skills/owui-proactive-ask/SKILL.md
 ```
 
-It instructs the agent to call `mcp__owui__ask` before answering **every**
+It instructs the agent to call the knowledge base `ask` tool before answering **every**
 explicit or implicit question (advice, explanations, recommendations,
 troubleshooting, follow-ups), pass relevant conversation context via
 `history`, keep remote tools enabled (`use_tools: true`), and validate the OWUI
@@ -124,9 +124,10 @@ npx skills add ./skills/owui-proactive-ask -g -a claude-code -y
 cp -r skills/owui-proactive-ask ~/.agents/skills/
 ```
 
-The skill references the tool as `mcp__owui__ask`, so register the MCP server
-under the name `owui` (Codex-style clients name MCP tools
-`mcp__<server>__<tool>`, see `[mcp_servers.owui]` in Quick start above).
+The skill refers to the tool as "the knowledge base MCP (its `ask`
+tool)", so the server can be registered under any name. The server ships default
+instructions and an `ask` description that use the same wording; override the
+instructions with `OPENWEBUI_INSTRUCTIONS`.
 
 The skill pairs with `OPENWEBUI_ASK_DESCRIPTION` and `OPENWEBUI_INSTRUCTIONS`
 (see Configure): the skill makes the agent call `ask`, while the description
@@ -284,7 +285,7 @@ defined env var in each alias list
 | Default model for `ask` | `OPENWEBUI_DEFAULT_MODEL`, `OWUI_DEFAULT_MODEL` | none |
 | Enforce default model | `OPENWEBUI_ENFORCE_DEFAULT_MODEL`, `OWUI_ENFORCE_DEFAULT_MODEL` | `false` |
 | `ask` tool description | `OPENWEBUI_ASK_DESCRIPTION`, `OWUI_ASK_DESCRIPTION` | built-in docstring |
-| Server instructions | `OPENWEBUI_INSTRUCTIONS`, `OWUI_INSTRUCTIONS` | none |
+| Server instructions | `OPENWEBUI_INSTRUCTIONS`, `OWUI_INSTRUCTIONS` | knowledge base text |
 | Transport | `OPENWEBUI_MCP_TRANSPORT` | `stdio` |
 | Chat timeout ms | `OWUI_TIMEOUT_MS` | `120000` |
 | Open WebUI CA bundle | `OPENWEBUI_CA_BUNDLE`, `OWUI_CA_BUNDLE` | none |
